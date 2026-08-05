@@ -592,8 +592,8 @@ tr.linha-concluida .td-name,tr.linha-cancelada .td-name{font-weight:500;}
    1) a URL que o Google gerou ao "Implantar como app da Web"
    2) a mesma senha (TOKEN) que você definiu no Code.gs
    ------------------------------------------------------------------ */
-const API_URL   = 'https://script.google.com/macros/s/AKfycbxSGJRv5aqXJ5WL-CYRj9z8BoqHDSkl-y-skUgu2AShZBCPRL-vIF2O7mNKTMwUo5Fa-Q/exec';
-const API_TOKEN = 'taboaoTIGER';
+const API_URL   = 'COLE_AQUI_A_URL_DO_APPS_SCRIPT';
+const API_TOKEN = 'TROQUE-ESTA-SENHA-2026';
 
 const configuracaoPendente = API_URL.indexOf('COLE_AQUI') === 0;
 
@@ -756,7 +756,7 @@ function normalizeRecord(r){
     id: r.id || ('R'+Math.random().toString(36).slice(2,9)),
     data: dataOk,                       // data da tentativa/agendamento original (1ª tentativa)
     dataAgendadaAtual: corrigirData(r.dataAgendadaAtual, r.planilhaOrigem) || dataOk, // próxima data agendada vigente
-    horario: r.horario || '',           // horário do procedimento (HH:MM)
+    horario: '08:00',                   // a exumação sempre ocorre às 08:00 — não é mais editável
     quadra: r.quadra||'', talhao: r.talhao||'', bloco: r.bloco||'', gaveta: r.gaveta||'',
     falecido: r.falecido||'',
     destino: r.destino||'',
@@ -1324,7 +1324,7 @@ function contatosCelulaHTML(r){
 function rowHTML(r){
   const sp = statusPrazo(r);
   return `<tr data-id="${r.id}" class="linha-${sp.nivel}">
-    <td class="td-date">${fmtDate(dataAlvo(r))}${r.horario?`<br><span class="helptext">${r.horario}</span>`:''}</td>
+    <td class="td-date">${fmtDate(dataAlvo(r))}</td>
     <td class="td-local">Q${r.quadra||'–'} T${r.talhao||'–'}${r.bloco?(' BL'+r.bloco):''} G${r.gaveta||'–'}</td>
     <td class="td-name">${escapeHtml(r.falecido)}</td>
     <td>${escapeHtml(r.responsavel)||'<span style="color:var(--ink-soft)">—</span>'}</td>
@@ -1359,7 +1359,6 @@ function openFormModal(existing){
     <div class="modal-body">
       <div class="form-grid">
         <div class="field"><label>Data agendada <span class="req">*</span></label><input type="date" id="fmData" value="${r.data||todayISO()}"></div>
-        <div class="field"><label>Horário</label><input type="time" id="fmHorario" value="${r.horario||''}"></div>
         <div class="field"><label>Prazo limite</label>
           <select id="fmPrazo">
             <option value="1" ${r.prazoLimiteAnos===1?'selected':''}>1 ano</option>
@@ -1394,7 +1393,6 @@ function openFormModal(existing){
     if(!data || !falecido){ showToast('Preencha a data e o nome do falecido.', 'err'); return; }
     const payload = {
       data,
-      horario: document.getElementById('fmHorario').value,
       prazoLimiteAnos: parseInt(document.getElementById('fmPrazo').value,10),
       falecido,
       destino: document.getElementById('fmDestino').value.trim(),
@@ -1534,7 +1532,7 @@ function detailHTML(r){
             </select>
           </div>
           <div class="field"><label>Nova data agendada</label><input type="date" id="rgNovaData" value="${todayISO()}"></div>
-          <div class="field"><label>Horário</label><input type="time" id="rgHorario" value="${r.horario||''}"></div>
+          <div class="field"><label>&nbsp;</label><div class="helptext" style="margin-top:9px">A exumação ocorre sempre às 08:00.</div></div>
           <div class="field span2"><label>Motivo / observação</label><input type="text" id="rgMotivo" placeholder="Ex: corpo em processo de saponificação"></div>
         </div>
         <div class="action-row">
@@ -1588,18 +1586,15 @@ function wireDetail(overlay, r){
   overlay.querySelector('#rgSalvar').addEventListener('click', async ()=>{
     const resultado = document.getElementById('rgResultado').value;
     const novaData = document.getElementById('rgNovaData').value;
-    const novoHorario = document.getElementById('rgHorario').value;
     const motivo = document.getElementById('rgMotivo').value.trim();
     let txt = '';
     if(resultado==='nao_decomposto'){
       r.status='reagendada';
       r.dataAgendadaAtual = novaData;
-      r.horario = novoHorario;
       txt = `Tentativa realizada: corpo ainda não decomposto. Reagendado para ${fmtDate(novaData)}.${motivo?' Obs: '+motivo:''}`;
     } else if(resultado==='realizada'){
       r.status='concluida';
       r.dataAgendadaAtual = novaData;
-      r.horario = novoHorario;
       txt = `Reabertura realizada com sucesso em ${fmtDate(novaData)}.${motivo?' Obs: '+motivo:''}`;
     } else {
       r.status='cancelada';
@@ -1623,7 +1618,7 @@ function wireDetail(overlay, r){
 /* =================== WHATSAPP MESSAGE =================== */
 function buildWhatsMessage(r){
   const dataExtenso = fmtDateExtenso(r.dataAgendadaAtual||r.data);
-  const horarioTxt = r.horario ? `, às *${r.horario}*` : '';
+  const HORARIO_EXUMACAO = '08:00'; // horário fixo — todas as exumações ocorrem às 08:00
   const isCremacao = (r.destino||'').toLowerCase().includes('crema');
   const docsParagraph = isCremacao
     ? `Importante: Como foi solicitada a cremação, é indispensável apresentar o atestado de óbito original e um documento de identificação com foto do responsável no dia do procedimento.`
@@ -1631,7 +1626,7 @@ function buildWhatsMessage(r){
   const h = new Date().getHours();
   const saudacao = h < 12 ? 'bom dia' : (h < 18 ? 'boa tarde' : 'boa noite');
   return `Olá, ${saudacao}!
-Informamos que a exumação de *${r.falecido}* está programada para o dia *${dataExtenso}*${horarioTxt}.
+Informamos que a exumação de *${r.falecido}* está programada para o dia *${dataExtenso}*, às *${HORARIO_EXUMACAO}*.
 Solicitamos, por gentileza, a confirmação de sua presença nessa data.
 
 ${docsParagraph}
@@ -1781,11 +1776,14 @@ function openResolverModal(registros){
       </div>
 
       <div class="form-grid">
-        <div class="field"><label id="lblData">Data da realização</label><input type="date" id="resData" value="${dataAlvo(registros[0])||todayISO()}"></div>
-        <div class="field"><label>Horário</label><input type="time" id="resHorario" value="${registros[0].horario||''}"></div>
+        <div class="field span2">
+          <label id="lblData">Data da realização</label>
+          <input type="date" id="resData" value="${dataAlvo(registros[0])||todayISO()}">
+          <div class="helptext">A exumação ocorre sempre às 08:00.</div>
+        </div>
         <div class="field span2"><label>Observação (opcional)</label><input type="text" id="resObs" placeholder="Ex: corpo em processo de saponificação"></div>
       </div>
-      <div class="helptext" id="resDica">A data e o horário ficam registrados no histórico de cada caso.</div>
+      <div class="helptext" id="resDica">A data fica registrada no histórico de cada caso.</div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-secondary" data-close>Cancelar</button>
@@ -1821,7 +1819,6 @@ function openResolverModal(registros){
   overlay.querySelector('#resSalvar').addEventListener('click', async ()=>{
     const op = overlay.querySelector('input[name="resop"]:checked').value;
     const data = inpData.value || todayISO();
-    const horario = overlay.querySelector('#resHorario').value;
     const obs = overlay.querySelector('#resObs').value.trim();
 
     if(op !== 'cancelada' && !data){ showToast('Informe a data.', 'err'); return; }
@@ -1834,17 +1831,14 @@ function openResolverModal(registros){
       if(op === 'realizada'){
         r.status = 'concluida';
         r.dataAgendadaAtual = data;
-        r.horario = horario;
         txt = `Reabertura realizada em ${fmtDate(data)}.`;
       } else if(op === 'nao_decomposto'){
         r.status = 'reagendada';
         r.dataAgendadaAtual = data;
-        r.horario = horario;
         txt = `Tentativa realizada: corpo ainda não decomposto. Reagendado para ${fmtDate(data)}.`;
       } else if(op === 'adiada'){
         r.status = 'reagendada';
         r.dataAgendadaAtual = data;
-        r.horario = horario;
         txt = `Adiado a pedido da família. Nova data: ${fmtDate(data)}.`;
       } else {
         r.status = 'cancelada';

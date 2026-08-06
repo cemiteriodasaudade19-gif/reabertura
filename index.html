@@ -408,6 +408,22 @@ tr.linha-concluida .td-name,tr.linha-cancelada .td-name{font-weight:500;}
 .contato-card .cc-rot{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
 .contato-card .cc-acoes{margin-left:auto;display:flex;gap:6px;}
 .contato-alerta{font-size:11px;color:var(--clay);font-family:'IBM Plex Mono',monospace;}
+
+.fm-tel-list{display:flex;flex-direction:column;gap:8px;margin-top:2px;}
+.fm-tel-row{display:flex;gap:8px;align-items:center;}
+.fm-tel-row .fm-tel-num{flex:1.3;}
+.fm-tel-row .fm-tel-label{flex:1;}
+.fm-tel-remove{
+  flex:none;width:32px;height:32px;border-radius:7px;border:1px solid var(--line);
+  background:var(--card);color:var(--ink-soft);cursor:pointer;font-size:16px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.fm-tel-remove:hover{background:#F7DED6;border-color:#E0B5A6;color:var(--clay);}
+.fm-tel-add{
+  align-self:flex-start;margin-top:4px;font-size:12.5px;font-weight:600;color:var(--sage-deep);
+  background:var(--sage-pale);border:1px solid #CBDBCB;border-radius:7px;padding:7px 13px;cursor:pointer;
+}
+.fm-tel-add:hover{background:var(--sage);color:#fff;}
 .bruto-box{
   font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);
   background:var(--paper-deep);border:1px dashed var(--line);border-radius:8px;padding:8px 11px;margin-top:6px;line-height:1.7;
@@ -1342,6 +1358,66 @@ function escapeHtml(s){
 }
 
 /* =================== MODAL: NEW / EDIT RECORD =================== */
+/* Quebra o texto de telefone salvo (ex.: "98132-2636 / 97799-7799 (GUSTAVO)")
+   em linhas separadas para preencher o formulário, reaproveitando o mesmo
+   interpretador usado para exibir os contatos na ficha. */
+function dividirTelefoneForm(str){
+  if(!str) return [];
+  return str.split(/[;/\n|]+/).map(s=>s.trim()).filter(Boolean).map(pedaco=>{
+    const f = pedacoParaFone(pedaco);
+    return f ? {numero: f.exibicao, rotulo: f.rotulo} : {numero: pedaco, rotulo: ''};
+  });
+}
+
+function linhaTelefoneFormHTML(numero, rotulo){
+  return `<div class="fm-tel-row">
+    <input type="text" class="fm-tel-num" placeholder="(11) 90000-0000" value="${escapeHtml(numero||'')}">
+    <input type="text" class="fm-tel-label" placeholder="Nome (opcional)" value="${escapeHtml(rotulo||'')}">
+    <button type="button" class="fm-tel-remove" title="Remover este telefone">&times;</button>
+  </div>`;
+}
+
+/* Liga os botões de adicionar/remover linha de telefone dentro do formulário. */
+function wireTelListForm(overlay){
+  const lista = overlay.querySelector('#fmTelList');
+
+  function ligarRemover(){
+    lista.querySelectorAll('.fm-tel-remove').forEach(btn=>{
+      btn.onclick = ()=>{
+        const linha = btn.closest('.fm-tel-row');
+        if(lista.children.length > 1){
+          linha.remove();
+        } else {
+          // é a última linha: só limpa, para sempre sobrar pelo menos uma
+          linha.querySelector('.fm-tel-num').value = '';
+          linha.querySelector('.fm-tel-label').value = '';
+        }
+      };
+    });
+  }
+  ligarRemover();
+
+  overlay.querySelector('#fmTelAdd').addEventListener('click', ()=>{
+    lista.insertAdjacentHTML('beforeend', linhaTelefoneFormHTML('',''));
+    ligarRemover();
+    const ultima = lista.lastElementChild.querySelector('.fm-tel-num');
+    ultima.focus();
+  });
+}
+
+/* Junta as linhas preenchidas de volta no mesmo formato de texto que o
+   restante do sistema já sabe interpretar (número (Nome) / número2 …). */
+function coletarTelefonesForm(overlay){
+  const linhas = [...overlay.querySelectorAll('#fmTelList .fm-tel-row')];
+  const partes = linhas.map(linha=>{
+    const num = linha.querySelector('.fm-tel-num').value.trim();
+    const rot = linha.querySelector('.fm-tel-label').value.trim();
+    if(!num) return null;
+    return rot ? `${num} (${rot})` : num;
+  }).filter(Boolean);
+  return partes.join(' / ');
+}
+
 function openFormModal(existing){
   const isEdit = !!existing;
   const r = existing || {};
@@ -1373,7 +1449,17 @@ function openFormModal(existing){
         <div class="field"><label>Bloco</label><input type="text" id="fmBloco" value="${escapeHtml(r.bloco)||''}"></div>
         <div class="field"><label>Gaveta</label><input type="text" id="fmGaveta" value="${escapeHtml(r.gaveta)||''}"></div>
         <div class="field"><label>Responsável</label><input type="text" id="fmResp" value="${escapeHtml(r.responsavel)||''}"></div>
-        <div class="field"><label>Telefone</label><input type="text" id="fmTel" value="${escapeHtml(r.telefone)||''}" placeholder="(11) 90000-0000"></div>
+        <div class="field span2">
+          <label>Telefone</label>
+          <div class="fm-tel-list" id="fmTelList">
+            ${(function(){
+              const linhas = dividirTelefoneForm(r.telefone);
+              const base = linhas.length ? linhas : [{numero:'',rotulo:''}];
+              return base.map(t=>linhaTelefoneFormHTML(t.numero,t.rotulo)).join('');
+            })()}
+          </div>
+          <button type="button" class="fm-tel-add" id="fmTelAdd">+ Adicionar telefone</button>
+        </div>
         <div class="field span2"><label>E-mail</label><input type="text" id="fmEmail" value="${escapeHtml(r.email)||''}"></div>
         <div class="field span2"><label>Observações</label><textarea id="fmObs" rows="3">${escapeHtml(r.observacoes)||''}</textarea></div>
       </div>
@@ -1386,6 +1472,7 @@ function openFormModal(existing){
   document.body.appendChild(overlay);
   overlay.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click', ()=>overlay.remove()));
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+  wireTelListForm(overlay);
 
   overlay.querySelector('#fmSave').addEventListener('click', async ()=>{
     const data = document.getElementById('fmData').value;
@@ -1401,7 +1488,7 @@ function openFormModal(existing){
       bloco: document.getElementById('fmBloco').value.trim(),
       gaveta: document.getElementById('fmGaveta').value.trim(),
       responsavel: document.getElementById('fmResp').value.trim(),
-      telefone: document.getElementById('fmTel').value.trim(),
+      telefone: coletarTelefonesForm(overlay),
       email: document.getElementById('fmEmail').value.trim(),
       observacoes: document.getElementById('fmObs').value.trim(),
     };
